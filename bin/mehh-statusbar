@@ -1,0 +1,28 @@
+#!/bin/bash
+out=""
+# active inbound SSH sessions
+sshc=$(ss -Htn state established '( sport = :22 )' 2>/dev/null | wc -l)
+if [ "${sshc:-0}" -gt 0 ]; then out+="#[fg=colour5,bold]SSH●${sshc}#[fg=default]  "; fi
+# battery
+cap=$(cat /sys/class/power_supply/BAT0/capacity 2>/dev/null)
+st=$(cat /sys/class/power_supply/BAT0/status 2>/dev/null)
+if [ -n "$cap" ]; then
+  mark=""; col=colour2
+  [ "$cap" -le 40 ] && col=colour3
+  [ "$cap" -le 15 ] && col=colour1
+  case "$st" in Charging|Full) mark="+"; col=colour6;; esac
+  out+="#[fg=${col}]BAT ${mark}${cap}%#[fg=default]  "
+fi
+# network eth + wifi
+seg(){ local l=$1 p=$2 d ip; d=$(ls /sys/class/net 2>/dev/null|grep "^$p"|head -1)
+  if [ -z "$d" ]; then printf '#[fg=colour8]%s --#[fg=default]' "$l"; return; fi
+  ip=$(ip -4 -o addr show "$d" 2>/dev/null|awk '{print $4}'|cut -d/ -f1|head -1)
+  if [ -n "$ip" ]; then printf '#[fg=colour2]%s %s#[fg=default]' "$l" "$ip"
+  else printf '#[fg=colour1]%s down#[fg=default]' "$l"; fi; }
+out+="$(seg ETH en)  $(seg WIFI wl)"
+# tailscale (if up)
+if command -v tailscale >/dev/null 2>&1; then
+  tsip=$(tailscale ip -4 2>/dev/null | head -1)
+  [ -n "$tsip" ] && out+="  #[fg=colour4]TS ${tsip}#[fg=default]"
+fi
+printf '%s' "$out"

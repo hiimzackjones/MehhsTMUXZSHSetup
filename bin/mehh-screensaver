@@ -1,0 +1,13 @@
+#!/bin/bash
+export LC_ALL=C.UTF-8 TERM="${TERM:-tmux-256color}"
+export PATH="/usr/games:/usr/local/bin:/usr/bin:/bin:$PATH"
+tools=()
+command -v cmatrix   >/dev/null && tools+=("matrix")
+command -v cbonsai   >/dev/null && tools+=("bonsai")
+command -v hollywood >/dev/null && tools+=("hollywood")
+[ ${#tools[@]} -eq 0 ] && exec sleep 3600
+case "${tools[$RANDOM % ${#tools[@]}]}" in
+  matrix)    exec cmatrix -abs ;;
+  bonsai)    exec cbonsai --screensaver --life 40 ;;
+  hollywood) exec env -u TMUX timeout --preserve-status 1200 hollywood ;;
+esac

@@ -1,0 +1,4 @@
+# nothing machine-specific or secret should live here — this repo is all portable config
+*.swp
+*~
+.DS_Store

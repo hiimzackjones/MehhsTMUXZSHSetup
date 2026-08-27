@@ -1,0 +1,21 @@
+export PATH="$HOME/.local/bin:$HOME/bin:$PATH"
+HISTFILE=~/.zsh_history; HISTSIZE=10000; SAVEHIST=10000
+setopt inc_append_history share_history hist_ignore_dups
+autoload -Uz compinit && compinit -u
+command -v starship >/dev/null && eval "$(starship init zsh)"
+
+# Wrap interactive logins in tmux (session "main"): over SSH, or on the physical
+# console (tty1-6). Already-in-tmux logins are skipped. Set MEHH_NO_TMUX=1 to opt out.
+if [[ -o interactive && -z "$TMUX" && -z "$MEHH_NO_TMUX" ]] && \
+   { [[ -n "$SSH_CONNECTION" ]] || [[ "$TTY" == /dev/tty[1-6] ]]; }; then
+  tmux attach -t main 2>/dev/null || tmux new-session -s main
+fi
+
+# login greeting: date, battery, weather (shown inside tmux + over ssh)
+if [[ -o interactive ]]; then
+  print
+  print -P "  %F{cyan}$(date '+%A %d %B %Y  ·  %H:%M')%f  %F{244}($(hostname) · $(uptime -p 2>/dev/null))%f"
+  command -v acpi >/dev/null 2>&1 && print -P "  %F{green}🔋 $(acpi -b 2>/dev/null | sed 's/Battery 0: //' | head -1)%f"
+  W=$(curl -s --max-time 3 'wttr.in/?format=3' 2>/dev/null); [[ -n "$W" ]] && print -P "  %F{yellow}⛅ ${W}%f"
+  print
+fi
