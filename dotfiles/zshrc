@@ -25,12 +25,18 @@ fi
 # ── fzf · Ctrl-R history, Ctrl-T files, Alt-C cd ─────────────────────────────
 # Debian ships these but sources nothing by default, so without this fzf only
 # ever gets used indirectly by zoxide's picker.
-for _f in /usr/share/doc/fzf/examples/key-bindings.zsh \
-          /usr/share/fzf/key-bindings.zsh \
-          /usr/share/doc/fzf/examples/completion.zsh \
-          /usr/share/fzf/completion.zsh; do
-  [[ -r "$_f" ]] && source "$_f"
-done; unset _f
+# Guarded on `-t 0`, the same test the tmux wrap uses. fzf's key-bindings.zsh and
+# completion.zsh each save/restore shell options around widget setup, and without a
+# real terminal that prints "can't change option: zle" on every scripted zsh -ic
+# call — including this repo's own installer verify step.
+if [[ -t 0 ]]; then
+  for _f in /usr/share/doc/fzf/examples/key-bindings.zsh \
+            /usr/share/fzf/key-bindings.zsh \
+            /usr/share/doc/fzf/examples/completion.zsh \
+            /usr/share/fzf/completion.zsh; do
+    [[ -r "$_f" ]] && source "$_f"
+  done; unset _f
+fi
 
 # ── zsh plugins ──────────────────────────────────────────────────────────────
 # ORDER MATTERS: syntax-highlighting must be sourced LAST. It wraps the widgets
@@ -68,5 +74,9 @@ if [[ -o interactive ]]; then
   MEHH_LOC="${MEHH_LOC//[[:space:]]/+}"
   W=$(curl -s --max-time 3 "wttr.in/${MEHH_LOC}?format=3" 2>/dev/null)
   [[ -n "$W" ]] && print -P "  %F{yellow}⛅ ${W}%f"
+  # The pointer home. This shell replaces cd and ls and rebinds Ctrl-R, so there
+  # has to be something on screen saying where that is written down.
+  command -v mehh >/dev/null && \
+    print -P "  %F{244}forgotten something? type%f %F{green}mehh%f %F{244}for the reference%f"
   print
 fi
