@@ -7,9 +7,14 @@
 #
 # Idempotent: safe to re-run. `git pull && ./install.sh` updates every device.
 #
-#   ./install.sh            full setup (installs deps, links dotfiles, sets shell)
-#   ./install.sh --check    verify-only: report what's present/missing, change nothing
-#   ./install.sh --no-chsh  do everything except change the login shell
+#   ./install.sh                  full setup (deps, dotfiles, login shell)
+#   ./install.sh --check          verify-only: report state, change nothing
+#   ./install.sh --no-chsh        do everything except change the login shell
+#   ./install.sh --location="X"   set the weather location without being asked
+#
+# The weather location is stored per-machine in ~/.config/mehh/location (NOT in this
+# repo — boxes live in different places). wttr.in geolocates by IP otherwise, which
+# lands in the middle of the US behind a VPN.
 #
 # Dotfiles are SYMLINKED to this repo, so editing a file here + `git pull` on each
 # box keeps them all in sync. Existing real files are backed up first.
@@ -17,12 +22,15 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP="$HOME/.mehh-dotfiles-backup"
-CHECK=0; DO_CHSH=1
+LOCFILE="$HOME/.config/mehh/location"
+DEFAULT_LOCATION="Cashiers NC"
+CHECK=0; DO_CHSH=1; LOCATION=""
 for a in "$@"; do
   case "$a" in
-    --check)   CHECK=1 ;;
-    --no-chsh) DO_CHSH=0 ;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    --check)      CHECK=1 ;;
+    --no-chsh)    DO_CHSH=0 ;;
+    --location=*) LOCATION="${a#*=}" ;;
+    -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
     *) echo "unknown flag: $a" >&2; exit 2 ;;
   esac
 done
@@ -83,6 +91,9 @@ if [[ $CHECK -eq 1 ]]; then
     elif [[ -e "$dst" ]]; then warn "$dst exists but is NOT linked to this repo"
     else err "$dst missing"; miss=1; fi
   done
+  say "Checking weather location"
+  if [[ -r "$LOCFILE" ]]; then ok "location: $(<"$LOCFILE")  ($LOCFILE)"
+  else warn "no location set — wttr.in will guess from your IP (often wrong on a VPN)"; fi
   say "Checking login shell"
   local_shell="$(getent passwd "$USER" | cut -d: -f7)"
   [[ "$local_shell" == *zsh ]] && ok "login shell is zsh ($local_shell)" || { warn "login shell is $local_shell (not zsh)"; }
@@ -149,6 +160,35 @@ say "Helper scripts"
 chmod +x "$REPO"/bin/* 2>/dev/null || true
 for pair in "${BINLINKS[@]}"; do link_one "$REPO/${pair%%|*}" "${pair##*|}" sudo; done
 if have tmux && tmux info >/dev/null 2>&1; then tmux source-file "$HOME/.tmux.conf" 2>/dev/null && ok "reloaded live tmux config" || true; fi
+
+# ════════════════════════════════════════════════════════════════════════════
+# 3b. weather location (per-machine, outside the repo)
+# ════════════════════════════════════════════════════════════════════════════
+say "Weather location"
+mkdir -p "$(dirname "$LOCFILE")"
+existing=""; [[ -r "$LOCFILE" ]] && existing="$(<"$LOCFILE")"
+if [[ -n "$LOCATION" ]]; then
+  :                                        # given on the command line — use it
+elif [[ -n "$existing" ]]; then
+  LOCATION="$existing"; ok "keeping existing location: $LOCATION"
+elif [[ -t 0 ]]; then                      # only prompt when there IS a terminal
+  printf '   Where is this machine? (city, "city ST", postcode, or an airport code)\n'
+  printf '   Leave blank for the default [%s]: ' "$DEFAULT_LOCATION"
+  read -r LOCATION || LOCATION=""
+  LOCATION="${LOCATION:-$DEFAULT_LOCATION}"
+else
+  LOCATION="$DEFAULT_LOCATION"
+  warn "not a terminal — defaulting to '$LOCATION' (change it with --location=\"...\")"
+fi
+if [[ "$LOCATION" != "$existing" ]]; then
+  printf '%s\n' "$LOCATION" > "$LOCFILE"
+  ok "location set to '$LOCATION' → $LOCFILE"
+fi
+if have curl; then
+  probe="$(curl -s --max-time 4 "wttr.in/${LOCATION// /+}?format=3" 2>/dev/null || true)"
+  if [[ -n "$probe" ]]; then ok "wttr.in says: $probe"
+  else warn "couldn't reach wttr.in just now — the greeting will simply skip the line"; fi
+fi
 
 # ════════════════════════════════════════════════════════════════════════════
 # 4. login shell → zsh

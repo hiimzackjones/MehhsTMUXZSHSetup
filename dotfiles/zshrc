@@ -6,7 +6,10 @@ command -v starship >/dev/null && eval "$(starship init zsh)"
 
 # Wrap interactive logins in tmux (session "main"): over SSH, or on the physical
 # console (tty1-6). Already-in-tmux logins are skipped. Set MEHH_NO_TMUX=1 to opt out.
-if [[ -o interactive && -z "$TMUX" && -z "$MEHH_NO_TMUX" ]] && \
+# `-t 0` matters: `zsh -ic '…'` (tooling, scripts, this repo's own installer verify
+# step) is "interactive" but has no terminal, and tmux dies there with
+# "open terminal failed: not a terminal".
+if [[ -o interactive && -t 0 && -z "$TMUX" && -z "$MEHH_NO_TMUX" ]] && \
    { [[ -n "$SSH_CONNECTION" ]] || [[ "$TTY" == /dev/tty[1-6] ]]; }; then
   tmux attach -t main 2>/dev/null || tmux new-session -s main
 fi
@@ -15,7 +18,17 @@ fi
 if [[ -o interactive ]]; then
   print
   print -P "  %F{cyan}$(date '+%A %d %B %Y  ·  %H:%M')%f  %F{244}($(hostname) · $(uptime -p 2>/dev/null))%f"
-  command -v acpi >/dev/null 2>&1 && print -P "  %F{green}🔋 $(acpi -b 2>/dev/null | sed 's/Battery 0: //' | head -1)%f"
-  W=$(curl -s --max-time 3 'wttr.in/?format=3' 2>/dev/null); [[ -n "$W" ]] && print -P "  %F{yellow}⛅ ${W}%f"
+  # Battery — only when there IS one. acpi gets installed on every box, so testing for
+  # the binary printed a bare "🔋" on desktops and Pis with no battery.
+  BAT=$(acpi -b 2>/dev/null | sed 's/Battery 0: //' | head -1)
+  [[ -n "$BAT" ]] && print -P "  %F{green}🔋 ${BAT}%f"
+  # Weather — wttr.in geolocates by IP, which lands on the middle of the US behind a
+  # VPN/tailnet. Prefer an explicit place: $MEHH_WEATHER_LOCATION, else the file the
+  # installer writes, else let wttr.in guess.
+  MEHH_LOC="${MEHH_WEATHER_LOCATION:-}"
+  [[ -z "$MEHH_LOC" && -r "$HOME/.config/mehh/location" ]] && MEHH_LOC="$(<"$HOME/.config/mehh/location")"
+  MEHH_LOC="${MEHH_LOC//[[:space:]]/+}"
+  W=$(curl -s --max-time 3 "wttr.in/${MEHH_LOC}?format=3" 2>/dev/null)
+  [[ -n "$W" ]] && print -P "  %F{yellow}⛅ ${W}%f"
   print
 fi
