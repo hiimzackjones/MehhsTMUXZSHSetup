@@ -10,7 +10,7 @@ machines.
 ## Quick start
 
 ```sh
-git clone git@github.com:hiimzackjones/MehhsTMUXZSHSetup.git ~/.mehh-shell
+git clone https://github.com/hiimzackjones/MehhsTMUXZSHSetup.git ~/.mehh-shell
 cd ~/.mehh-shell
 ./install.sh
 exec zsh          # or just re-SSH
