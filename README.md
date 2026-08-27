@@ -8,7 +8,7 @@ installs it top to bottom.
 Seeded from my box **slippy** (Debian 13) and generalised so it runs on any of my
 machines.
 
-<!-- SCREENSHOT: login — a fresh SSH landing in tmux: greeting, starship prompt, status bar -->
+![An SSH login: the greeting with date, battery and weather, the starship prompt, and the tmux status bar](assets/login.png)
 
 ## Quick start
 
@@ -40,7 +40,7 @@ plain shell — the aliases, the replaced commands, the keys. `mehh <section>` f
 topic, `mehh -l` for the index. The login greeting points at it, so it is always one
 word away.
 
-<!-- SCREENSHOT: `mehh` output -->
+![The mehh reference, showing the listing, moving-around and fuzzy-finding sections](assets/mehh.png)
 
 ## What you get
 
@@ -65,7 +65,7 @@ word away.
   `Ctrl-R` fuzzy history, `Ctrl-T` insert a file path, `Alt-C` cd, and `**<Tab>`
   fuzzy completion for any command.
 
-<!-- SCREENSHOT: Ctrl-R fzf history overlay -->
+![Ctrl-R open: fzf fuzzy-searching shell history](assets/fzf-history.png)
 
 **tmux**
 
@@ -85,7 +85,7 @@ word away.
 - A **login greeting**: date, uptime, battery (if present), current weather, and the
   pointer to `mehh`.
 
-<!-- SCREENSHOT: btop running -->
+![Two tmux panes: btop above, an eza tree listing below](assets/tmux-panes.png)
 
 Battery / weather / SSH-count lines are all self-guarding — on a desktop or VM with
 no battery they simply go quiet. Hostname is read live, so the prompt and bar adapt
@@ -137,7 +137,7 @@ Flags:
 - `./install.sh --no-chsh` — do everything except change the login shell.
 - `./install.sh --location="Asheville NC"` — set the weather location without being asked.
 
-<!-- SCREENSHOT: ./install.sh --check output, all green -->
+![install.sh --check reporting every dependency, symlink, the weather location and the login shell as present](assets/install-check.png)
 
 ## Configuration
 
