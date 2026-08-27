@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+# mehh — what this terminal setup does that a plain shell doesn't.
+#
+# Only the NUANCES: the aliases, the replaced commands, the keys you'd otherwise
+# have to remember. Not a tutorial for any of the underlying tools.
+#
+#   mehh              everything
+#   mehh ls           just the listing section (any word: cd, fzf, tmux, btop, zsh, setup)
+#   mehh -l           one-line index of the sections
+set -uo pipefail
+
+if [[ -t 1 ]]; then
+  B=$'\033[1m'; D=$'\033[2m'; C=$'\033[36m'; Y=$'\033[33m'; G=$'\033[32m'; R=$'\033[0m'
+else
+  B=""; D=""; C=""; Y=""; G=""; R=""
+fi
+
+k() { printf '  %s%-22s%s %s\n' "$G" "$1" "$R" "$2"; }        # key/command + description
+n() { printf '     %s%s%s\n' "$D" "$1" "$R"; }                 # indented note
+h() { printf '\n%s%s%s\n' "$C$B" "$1" "$R"; }                  # section heading
+
+sec_ls() {
+h "LISTING — eza has replaced ls"
+k "ls"           "plain listing, directories first"
+k "ll"           "long: permissions, size, git status, ISO dates"
+k "la"           "long + hidden files  ${D}(this is your old 'ls -la')${R}"
+k "lt"           "tree, 2 levels deep"
+n "'ls -la' still works — eza accepts the common ls flags."
+n "Go deeper:  eza --tree --level=4     Sort:  ll -s size   |   ll -s modified"
+n "Real ls is still there if you need it:  command ls"
+}
+
+sec_cd() {
+h "MOVING AROUND — zoxide has replaced cd"
+k "cd <path>"    "normal cd. Real paths, 'cd -', bare 'cd' all unchanged"
+k "cd <fragment>" "JUMP to a directory you've visited before, from anywhere"
+n "e.g. after visiting ~/Projects/dreamforge once:  cd dreamforge"
+n "It ranks by 'frecency' — how often AND how recently you've been there."
+k "cdi"          "interactive picker (fzf) over everything it knows"
+k "z / zi"       "aliases for cd / cdi, if that's the muscle memory you have"
+n "Inspect it:   zoxide query -l          (everything it has learned, ranked)"
+n "Forget one:   zoxide remove <path>"
+n "A directory has to be VISITED once before you can jump to it."
+}
+
+sec_fzf() {
+h "FUZZY FINDING — fzf, wired into the shell"
+k "Ctrl-R"       "search command history ${D}(replaces the default reverse-search)${R}"
+k "Ctrl-T"       "insert a file path from under the current directory"
+k "Alt-C"        "cd into a subdirectory"
+k "**<Tab>"      "fuzzy-complete anything:  vim **<Tab>   ssh **<Tab>   kill -9 **<Tab>"
+n "Inside the picker: type to filter, ↑/↓ to move, Enter to pick, Esc to cancel."
+}
+
+sec_zsh() {
+h "THE SHELL — zsh, autosuggestions, syntax highlighting"
+k "→  or  End"   "accept the grey suggestion ahead of the cursor"
+k "Alt-→"        "accept just the next WORD of it"
+n "Suggestions come from your history — the more you use it, the better it guesses."
+k "(colours)"    "commands turn green when valid, red when not — before you press Enter"
+n "A red command name is usually a typo or something not installed."
+n "History is SHARED live between panes and sessions (10,000 lines, no duplicates),"
+n "so a command typed in one tmux pane is instantly available in another."
+}
+
+sec_tmux() {
+h "TMUX — you are probably inside it right now"
+n "SSH logins attach to a session called 'main'. Disconnect and everything keeps"
+n "running; log back in and you land exactly where you left off."
+k "Ctrl-b d"     "DETACH — leave it running. This is how you should leave."
+n "Typing 'exit' instead kills the session and loses the running work."
+k "Ctrl-b c"     "new window            ${D}Ctrl-b n / p — next / previous${R}"
+k "Ctrl-b 0-9"   "jump to window by number"
+k "Ctrl-b %"     "split left/right      ${D}Ctrl-b \" — split top/bottom${R}"
+k "Ctrl-b o"     "next pane             ${D}Ctrl-b arrows — move between panes${R}"
+k "Ctrl-b z"     "zoom this pane fullscreen (again to unzoom)"
+k "Ctrl-b ["     "scrollback / copy mode — q to leave"
+k "Ctrl-b ?"     "every key binding"
+n "Mouse is ON: click panes, drag borders, scroll with the wheel."
+k "MEHH_NO_TMUX=1" "set this to log in WITHOUT the tmux wrap"
+}
+
+sec_tpm() {
+h "TMUX PLUGINS — TPM"
+k "Ctrl-b I"     "install plugins listed in ~/.tmux.conf ${D}(capital I)${R}"
+k "Ctrl-b U"     "update installed plugins"
+k "Ctrl-b alt-u" "remove plugins no longer listed"
+n "To add one: put  set -g @plugin 'author/name'  in dotfiles/tmux.conf ABOVE the"
+n "final 'run' line, then press Ctrl-b I."
+}
+
+sec_btop() {
+h "BTOP — system monitor"
+k "btop"         "launch it"
+k "q  or  Esc"   "quit"
+k "m"            "cycle presets   ${D}h — help with every key${R}"
+k "f"            "filter processes   ${D}t — tree view   k — kill selected${R}"
+k "+ / -"        "expand / collapse a process branch"
+n "Your config: Dracula theme, transparent background, processes sorted by PID."
+n "Change it in btop's own menu (Esc → Options); it saves to ~/.config/btop/btop.conf."
+n "install.sh re-applies those three settings, so they follow you to a new machine."
+}
+
+sec_setup() {
+h "THE SETUP ITSELF"
+k "~/.mehh-shell"  "the repo — the ONLY copy. Your dotfiles are symlinks into it."
+n "Editing a file there changes your shell immediately. git push shares it."
+k "cd ~/.mehh-shell && git pull && ./install.sh"  ""
+n "…is how you update this machine after pushing a change from another."
+k "./install.sh --check"      "report what's installed/linked, change nothing"
+k "./install.sh --location=X" "set the weather location for the login greeting"
+n "Location is stored per-machine in ~/.config/mehh/location (not in the repo —"
+n "your boxes live in different places)."
+k "MEHH_WEATHER_LOCATION"     "override the location for one session"
+n "Screensaver (hollywood/cmatrix) is OFF by default — it can pin a weak box."
+n "Enable it by uncommenting the two lock- lines at the end of dotfiles/tmux.conf."
+}
+
+INDEX="ls cd fzf zsh tmux tpm btop setup"
+if [[ "${1:-}" == "-l" || "${1:-}" == "--list" ]]; then
+  printf '%s\n' "mehh sections:"
+  printf '  %s%-8s%s %s\n' "$G" "ls"    "$R" "eza aliases — ll, la, lt"
+  printf '  %s%-8s%s %s\n' "$G" "cd"    "$R" "zoxide — jumping by fragment"
+  printf '  %s%-8s%s %s\n' "$G" "fzf"   "$R" "Ctrl-R, Ctrl-T, Alt-C, **<Tab>"
+  printf '  %s%-8s%s %s\n' "$G" "zsh"   "$R" "suggestions, highlighting, history"
+  printf '  %s%-8s%s %s\n' "$G" "tmux"  "$R" "sessions, panes, detaching"
+  printf '  %s%-8s%s %s\n' "$G" "tpm"   "$R" "tmux plugins"
+  printf '  %s%-8s%s %s\n' "$G" "btop"  "$R" "system monitor"
+  printf '  %s%-8s%s %s\n' "$G" "setup" "$R" "the repo, install.sh, updating"
+  printf '\n%sRun%s mehh <section>%s for one, or%s mehh%s for everything.\n' "$D" "$R$G" "$R$D" "$R$G" "$R"
+  exit 0
+fi
+
+render() {
+  printf '%smehh%s — what this terminal does differently%s\n' "$B$C" "$R$D" "$R"
+  if [[ -n "${1:-}" ]]; then
+    case "$1" in
+      ls|eza|list*)        sec_ls ;;
+      cd|z|zoxide|jump)    sec_cd ;;
+      fzf|fuzzy|find)      sec_fzf ;;
+      zsh|shell|suggest*)  sec_zsh ;;
+      tmux|session*|pane*) sec_tmux ;;
+      tpm|plugin*)         sec_tpm ;;
+      btop|top|monitor)    sec_btop ;;
+      setup|repo|install*) sec_setup ;;
+      *) printf '\n  no section "%s". Try: %s\n' "$1" "$INDEX"; return 1 ;;
+    esac
+  else
+    sec_ls; sec_cd; sec_fzf; sec_zsh; sec_tmux; sec_tpm; sec_btop; sec_setup
+    printf '\n%s  mehh <section> for just one · mehh -l for the index%s\n' "$D" "$R"
+  fi
+  printf '\n'
+}
+
+# page only when it will not fit and we are on a terminal
+if [[ -t 1 ]] && command -v less >/dev/null; then
+  out="$(render "${1:-}")" || { printf '%s\n' "$out"; exit 1; }
+  if (( $(printf '%s\n' "$out" | wc -l) > $(tput lines 2>/dev/null || echo 24) )); then
+    printf '%s\n' "$out" | less -R
+  else
+    printf '%s\n' "$out"
+  fi
+else
+  render "${1:-}"
+fi

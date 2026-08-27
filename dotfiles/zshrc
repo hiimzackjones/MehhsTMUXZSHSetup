@@ -4,6 +4,42 @@ setopt inc_append_history share_history hist_ignore_dups
 autoload -Uz compinit && compinit -u
 command -v starship >/dev/null && eval "$(starship init zsh)"
 
+# ── eza · maintained ls replacement ──────────────────────────────────────────
+if command -v eza >/dev/null; then
+  alias ls='eza --group-directories-first'
+  alias ll='eza -l  --group-directories-first --git --time-style=long-iso'
+  alias la='eza -la --group-directories-first --git --time-style=long-iso'
+  alias lt='eza --tree --level=2 --group-directories-first'
+fi
+
+# ── zoxide · REPLACES cd ─────────────────────────────────────────────────────
+# --cmd cd makes `cd` itself frecency-aware: `cd dreamforge` jumps there from
+# anywhere. Real paths, `cd -` and bare `cd` still behave normally — zoxide falls
+# through to builtin cd when the argument resolves as a path. `cdi` = fzf picker.
+# Init AFTER compinit so completions register.
+if command -v zoxide >/dev/null; then
+  eval "$(zoxide init zsh --cmd cd)"
+  alias z='cd'; alias zi='cdi'          # muscle memory
+fi
+
+# ── fzf · Ctrl-R history, Ctrl-T files, Alt-C cd ─────────────────────────────
+# Debian ships these but sources nothing by default, so without this fzf only
+# ever gets used indirectly by zoxide's picker.
+for _f in /usr/share/doc/fzf/examples/key-bindings.zsh \
+          /usr/share/fzf/key-bindings.zsh \
+          /usr/share/doc/fzf/examples/completion.zsh \
+          /usr/share/fzf/completion.zsh; do
+  [[ -r "$_f" ]] && source "$_f"
+done; unset _f
+
+# ── zsh plugins ──────────────────────────────────────────────────────────────
+# ORDER MATTERS: syntax-highlighting must be sourced LAST. It wraps the widgets
+# defined before it; source it earlier and highlighting silently stops working.
+[[ -r /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]] \
+  && source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+[[ -r /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]] \
+  && source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+
 # Wrap interactive logins in tmux (session "main"): over SSH, or on the physical
 # console (tty1-6). Already-in-tmux logins are skipped. Set MEHH_NO_TMUX=1 to opt out.
 # `-t 0` matters: `zsh -ic '…'` (tooling, scripts, this repo's own installer verify
@@ -20,8 +56,10 @@ if [[ -o interactive ]]; then
   print -P "  %F{cyan}$(date '+%A %d %B %Y  ·  %H:%M')%f  %F{244}($(hostname) · $(uptime -p 2>/dev/null))%f"
   # Battery — only when there IS one. acpi gets installed on every box, so testing for
   # the binary printed a bare "🔋" on desktops and Pis with no battery.
+  # ${BAT//\%/%%} matters: acpi says "Full, 97%", and print -P reads that trailing %
+  # together with the following %f reset as an escaped literal, printing "97%f".
   BAT=$(acpi -b 2>/dev/null | sed 's/Battery 0: //' | head -1)
-  [[ -n "$BAT" ]] && print -P "  %F{green}🔋 ${BAT}%f"
+  [[ -n "$BAT" ]] && print -P "  %F{green}🔋 ${BAT//\%/%%}%f"
   # Weather — wttr.in geolocates by IP, which lands on the middle of the US behind a
   # VPN/tailnet. Prefer an explicit place: $MEHH_WEATHER_LOCATION, else the file the
   # installer writes, else let wttr.in guess.

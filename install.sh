@@ -40,6 +40,14 @@ ok()   { printf '   \033[32m✓\033[0m %s\n' "$*"; }
 warn() { printf '   \033[33m!\033[0m %s\n' "$*"; }
 err()  { printf '   \033[31m✗\033[0m %s\n' "$*"; }
 have() { command -v "$1" >/dev/null 2>&1; }
+# these two ship as sourceable files, not binaries — presence is a path test
+plugin_present() {
+  case "$1" in
+    zsh-autosuggestions)     [[ -r /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]] ;;
+    zsh-syntax-highlighting) [[ -r /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]] ;;
+    *) return 1 ;;
+  esac
+}
 
 # what maps where:  <repo path>  <destination>
 DOTLINKS=(
@@ -49,12 +57,16 @@ DOTLINKS=(
   "dotfiles/tmux.conf|$HOME/.tmux.conf"
 )
 BINLINKS=(
+  "bin/mehh|/usr/local/bin/mehh"
   "bin/mehh-statusbar|/usr/local/bin/mehh-statusbar"
   "bin/mehh-screensaver|/usr/local/bin/mehh-screensaver"
 )
-# runtime deps.  acpi is optional (battery line only); curl optional (weather line).
+# runtime deps. acpi is optional (battery line only); curl optional (weather line).
+# eza/zoxide/fzf/btop and the two zsh plugins are what make this shell what it is;
+# the dotfiles all degrade gracefully if one is absent, so they are OPTIONAL rather
+# than fatal — a box with an odd package set still gets a working shell.
 REQUIRED=(zsh tmux starship)
-OPTIONAL=(curl acpi)
+OPTIONAL=(curl acpi eza zoxide fzf btop zsh-autosuggestions zsh-syntax-highlighting)
 
 # ── package manager detection ────────────────────────────────────────────────
 PM=""
@@ -83,7 +95,10 @@ if [[ $CHECK -eq 1 ]]; then
   say "Checking dependencies"
   miss=0
   for c in "${REQUIRED[@]}"; do have "$c" && ok "$c ($(command -v "$c"))" || { err "$c MISSING"; miss=1; }; done
-  for c in "${OPTIONAL[@]}"; do have "$c" && ok "$c (optional)" || warn "$c absent (optional — a greeting/statusbar line goes quiet)"; done
+  for c in "${OPTIONAL[@]}"; do
+    if have "$c" || plugin_present "$c"; then ok "$c (optional)"
+    else warn "$c absent (optional — the feature it powers just goes quiet)"; fi
+  done
   say "Checking dotfile links"
   for pair in "${DOTLINKS[@]}" "${BINLINKS[@]}"; do
     src="$REPO/${pair%%|*}"; dst="${pair##*|}"
@@ -115,9 +130,10 @@ ok "repo: $REPO"
 say "Dependencies"
 [[ "$PM" == "apt" ]] && { sudo apt-get update -qq || warn "apt update failed — continuing"; }
 for c in "${REQUIRED[@]}" "${OPTIONAL[@]}"; do
+  if plugin_present "$c"; then ok "$c present"; continue; fi
   if have "$c"; then ok "$c present"; continue; fi
   printf '   installing %s …\n' "$c"
-  if pkg_install "$c" && have "$c"; then
+  if pkg_install "$c" && { have "$c" || plugin_present "$c"; }; then
     ok "$c installed"
   elif [[ "$c" == "starship" ]]; then
     warn "starship not in repos — using the official installer → ~/.local/bin"
@@ -162,7 +178,56 @@ for pair in "${BINLINKS[@]}"; do link_one "$REPO/${pair%%|*}" "${pair##*|}" sudo
 if have tmux && tmux info >/dev/null 2>&1; then tmux source-file "$HOME/.tmux.conf" 2>/dev/null && ok "reloaded live tmux config" || true; fi
 
 # ════════════════════════════════════════════════════════════════════════════
-# 3b. weather location (per-machine, outside the repo)
+# 3a. TPM — tmux plugin manager (cloned, not packaged)
+# ════════════════════════════════════════════════════════════════════════════
+say "tmux plugins"
+TPM_DIR="$HOME/.tmux/plugins/tpm"
+if [[ -d "$TPM_DIR/.git" ]]; then
+  ok "tpm present"
+elif have git; then
+  git clone -q https://github.com/tmux-plugins/tpm "$TPM_DIR" && ok "tpm cloned" || err "tpm clone failed"
+else
+  warn "git absent — skipping tpm"
+fi
+if [[ -x "$TPM_DIR/bin/install_plugins" ]]; then
+  # needs a running server to apply against; make a throwaway one if none exists
+  started=0
+  tmux has-session 2>/dev/null || { tmux new-session -d -s _mehh_tpm 2>/dev/null && started=1; }
+  "$TPM_DIR/bin/install_plugins" >/dev/null 2>&1 && ok "tmux plugins installed" || warn "tpm install_plugins reported a problem"
+  [[ $started -eq 1 ]] && tmux kill-session -t _mehh_tpm 2>/dev/null
+fi
+
+# ════════════════════════════════════════════════════════════════════════════
+# 3b. btop — apply just our settings, leave the other ~66 alone
+# ════════════════════════════════════════════════════════════════════════════
+# btop REWRITES its whole config on exit (including a version header), so this file
+# is deliberately NOT symlinked into the repo — that would churn git every time you
+# opened btop, and a btop upgrade on one box would rewrite it for all of them.
+# Instead we set only the three keys we care about, in whatever config btop generated.
+if have btop; then
+  say "btop settings"
+  BTOP_CONF="$HOME/.config/btop/btop.conf"
+  mkdir -p "$(dirname "$BTOP_CONF")"
+  [[ -f "$BTOP_CONF" ]] || printf '#? Config file for btop\n' > "$BTOP_CONF"
+  set_btop() {                       # <key> <value>
+    local key="$1" val="$2"
+    if grep -qE "^${key} =" "$BTOP_CONF"; then
+      sed -i "s|^${key} =.*|${key} = ${val}|" "$BTOP_CONF"
+    else
+      printf '%s = %s\n' "$key" "$val" >> "$BTOP_CONF"
+    fi
+  }
+  theme="/usr/share/btop/themes/dracula.theme"
+  [[ -r "$theme" ]] || theme="Default"      # brew/other prefixes ship it elsewhere
+  set_btop color_theme "\"$theme\""
+  set_btop theme_background "False"
+  set_btop proc_sorting "\"pid\""
+  ok "btop: dracula, transparent background, sorted by pid"
+  [[ "$theme" == "Default" ]] && warn "dracula.theme not found at the Debian path — left btop on Default"
+fi
+
+# ════════════════════════════════════════════════════════════════════════════
+# 3c. weather location (per-machine, outside the repo)
 # ════════════════════════════════════════════════════════════════════════════
 say "Weather location"
 mkdir -p "$(dirname "$LOCFILE")"
